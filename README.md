@@ -2,7 +2,12 @@
 
 ## Overview
 
-This is a simple HTTP server library written in Go. It includes functionalities for handling HTTP requests and responses, routing, and creating an HTTP server.
+This is a simple HTTP server library (didn't find a cool name yet) written in Go. It includes functionalities for handling HTTP requests and responses, routing, and creating an HTTP server.
+
+### Installation
+```bash
+    go get github.com/lai0xn/http
+```
 
 
 ### Example Usage
