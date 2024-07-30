@@ -6,7 +6,7 @@ This is a simple HTTP server library (didn't find a cool name yet) written in Go
 
 ### Installation
 ```bash
-    go get github.com/lai0xn/http
+go get github.com/lai0xn/http
 ```
 
 
