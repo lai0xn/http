@@ -11,10 +11,12 @@ import (
 	"github.com/charmbracelet/log"
 )
 
+// Handler interface defines the method to serve HTTP requests.
 type Handler interface {
 	ServeHTTP(w ResponseWriter, r *Request)
 }
 
+// ResponseWriter interface defines methods for writing responses.
 type ResponseWriter interface {
 	WriteString(str string)
 	WriteStatus(status int)
@@ -22,7 +24,7 @@ type ResponseWriter interface {
 	WriteJson(s interface{}) error
 }
 
-// The request type
+// Request represents an HTTP request.
 type Request struct {
 	Method  string
 	URL     string
@@ -31,7 +33,7 @@ type Request struct {
 	Body    []byte
 }
 
-// The response type
+// Response represents an HTTP response.
 type Response struct {
 	Proto   string
 	Status  int
@@ -39,10 +41,12 @@ type Response struct {
 	Body    string
 }
 
+// WriteString sets the response body to a string value.
 func (w *Response) WriteString(str string) {
 	w.Body = str
 }
 
+// WriteJson serializes an object as JSON and sets it as the response body.
 func (w *Response) WriteJson(s interface{}) error {
 	bytes, err := json.Marshal(s)
 	if err != nil {
@@ -52,26 +56,30 @@ func (w *Response) WriteJson(s interface{}) error {
 	return nil
 }
 
+// WriteHeader sets a header key-value pair in the response.
 func (w *Response) WriteHeader(key string, value string) {
 	w.Headers[key] = value
 }
 
+// WriteStatus sets the response status code.
 func (w *Response) WriteStatus(status int) {
 	w.Status = status
 }
 
-// httpcon makes it easier to access the handlers
+// httpconn manages the connection and handles HTTP requests.
 type httpconn struct {
 	handler Handler
 	conn    net.Conn
 }
 
+// serve handles the HTTP requests and responses for the connection.
 func (h *httpconn) serve() {
 	defer h.conn.Close()
 
 	reader := bufio.NewReader(h.conn)
 
 	for {
+		// Read the request line (method, URL, and protocol)
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			log.Error(err)
@@ -80,12 +88,15 @@ func (h *httpconn) serve() {
 
 		parts := strings.Split(line, " ")
 
+		// Initialize the request object
 		req := Request{
 			Method:  parts[0],
 			URL:     parts[1],
 			Proto:   strings.TrimSpace(parts[2]),
 			Headers: make(map[string]string),
 		}
+
+		// Read headers
 		for {
 			headerLine, err := reader.ReadString('\n')
 			if err != nil {
@@ -98,9 +109,9 @@ func (h *httpconn) serve() {
 			if len(headerParts) == 2 {
 				req.Headers[strings.TrimSpace(headerParts[0])] = strings.TrimSpace(headerParts[1])
 			}
-
 		}
-		// reading the Body
+
+		// Read the body if Content-Length is specified
 		if bodyLen, ok := req.Headers["Content-Length"]; ok {
 			length, err := strconv.Atoi(bodyLen)
 			if err != nil {
@@ -113,6 +124,8 @@ func (h *httpconn) serve() {
 			}
 			req.Body = body
 		}
+
+		// Prepare and handle the response
 		resp := Response{
 			Proto:   req.Proto,
 			Status:  200,
@@ -120,14 +133,19 @@ func (h *httpconn) serve() {
 		}
 		h.handler.ServeHTTP(&resp, &req)
 		resp.Headers["Content-Length"] = strconv.Itoa(len(resp.Body))
-		response := fmt.Sprintf("%s %d OK\r\n", resp.Proto, resp.Status)
 
+		// Construct the response
+		response := fmt.Sprintf("%s %d OK\r\n", resp.Proto, resp.Status)
 		for key, value := range resp.Headers {
 			response += fmt.Sprintf("%s: %s\r\n", key, value)
 		}
 		response += "\r\n" + resp.Body
+
+		// Send the response
 		fmt.Println(response)
 		h.conn.Write([]byte(response))
+
+		// Check if connection should be kept alive
 		connection := req.Headers["Connection"]
 		if connection != "keep-alive" {
 			break
@@ -135,25 +153,118 @@ func (h *httpconn) serve() {
 	}
 }
 
+// Server represents an HTTP server.
 type Server struct {
 	Handler Handler
 	ADDR    string
 }
 
+// Listen starts the server and handles incoming connections.
 func (s *Server) Listen(l net.Listener) error {
 	log.Info("Server Running")
 	defer l.Close()
-	for {
 
+	for {
+		// Accept new connections
 		conn, err := l.Accept()
 		if err != nil {
 			return err
 		}
 		log.Info("New Connection")
+
+		// Handle the connection in a new goroutine
 		hc := httpconn{
 			handler: s.Handler,
 			conn:    conn,
 		}
 		go hc.serve()
 	}
+}
+
+// HandlerFunc is a function type that implements the Handler interface.
+type HandlerFunc func(w ResponseWriter, r *Request)
+
+// ServeHTTP calls the HandlerFunc with the given ResponseWriter and Request.
+func (h HandlerFunc) ServeHTTP(w ResponseWriter, r *Request) {
+	h(w, r)
+}
+
+// NewServerMux creates and returns a new instance of mux.
+func NewServerMux() *mux {
+	return &mux{}
+}
+
+// Route defines a route with an HTTP method, URL pattern, and associated handler.
+type Route struct {
+	Method  string
+	URL     string
+	Handler Handler
+}
+
+// GET registers a new GET route with the specified URL and handler function.
+func (m *mux) GET(route string, f HandlerFunc) {
+	r := Route{
+		Method:  "GET",
+		URL:     route,
+		Handler: Handler(f),
+	}
+	m.routes = append(m.routes, r)
+}
+
+// POST registers a new POST route with the specified URL and handler function.
+func (m *mux) POST(route string, f HandlerFunc) {
+	r := Route{
+		Method:  "POST",
+		URL:     route,
+		Handler: Handler(f),
+	}
+	m.routes = append(m.routes, r)
+}
+
+// PUT registers a new PUT route with the specified URL and handler function.
+func (m *mux) PUT(route string, f HandlerFunc) {
+	r := Route{
+		Method:  "PUT",
+		URL:     route,
+		Handler: Handler(f),
+	}
+	m.routes = append(m.routes, r)
+}
+
+// DELETE registers a new DELETE route with the specified URL and handler function.
+func (m *mux) DELETE(route string, f HandlerFunc) {
+	r := Route{
+		Method:  "DELETE",
+		URL:     route,
+		Handler: Handler(f),
+	}
+	m.routes = append(m.routes, r)
+}
+
+// PATCH registers a new PATCH route with the specified URL and handler function.
+func (m *mux) PATCH(route string, f HandlerFunc) {
+	r := Route{
+		Method:  "PATCH",
+		URL:     route,
+		Handler: Handler(f),
+	}
+	m.routes = append(m.routes, r)
+}
+
+// mux is a simple multiplexer for routing HTTP requests to handlers.
+type mux struct {
+	routes []Route
+}
+
+// ServeHTTP matches the request URL and method against the registered routes
+// and invokes the corresponding handler if a match is found.
+func (m *mux) ServeHTTP(w ResponseWriter, r *Request) {
+	for _, route := range m.routes {
+		if route.URL == r.URL && r.Method == route.Method {
+			route.Handler.ServeHTTP(w, r)
+			return
+		}
+	}
+	// Return 404 Not Found if no route matches the request.
+	w.WriteStatus(404)
 }
