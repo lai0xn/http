@@ -18,7 +18,9 @@ func main() {
 	m.GET("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteString("Hello World \n")
 	})
-
+	m.GET("/bad", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteStatus(http.StatusBadRequest)
+	})
 	server := http.Server{
 		Handler: m,
 	}

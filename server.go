@@ -132,7 +132,11 @@ func (h *httpconn) serve() {
 			Headers: map[string]string{"Content-Type": "text/plain"},
 		}
 		h.handler.ServeHTTP(&resp, &req)
-		response := constructResponse(&resp)
+		response, err := constructResponse(&resp)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
 		// Send the response
 		fmt.Println(response)
 		h.conn.Write([]byte(response))
