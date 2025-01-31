@@ -1,7 +1,5 @@
 package http
 
-import "net/http"
-
 // Route defines a route with an HTTP method, URL pattern, and associated handler.
 type Route struct {
 	method  string
@@ -9,8 +7,8 @@ type Route struct {
 	handler Handler
 }
 
-func (r *Route) match(w http.ResponseWriter, req *http.Request) bool {
-	if req.URL.String() != r.url {
+func (r *Route) match(req *Request) bool {
+	if req.URL != r.url {
 		return false
 	}
 	if req.Method != r.method && r.method != "ALL" {
