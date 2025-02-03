@@ -21,6 +21,16 @@ func main() {
 	m.GET("/bad", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteStatus(http.StatusBadRequest)
 	})
+
+	m.GET("/html", func(w http.ResponseWriter, r *http.Request) {
+		t := http.NewTemplate("./index.html")
+		err := t.Parse()
+		if err != nil {
+			return
+		}
+		t.Execute(w)
+	})
+
 	server := http.Server{
 		Handler: m,
 	}
