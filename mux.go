@@ -1,13 +1,17 @@
 package http
 
 // Router is a simple multiplexer for routing HTTP requests to handlers.
+// It maintains a list of routes and middlewares to handle incoming requests.
 type Router struct {
-	routes      []*Route
-	middlewares []MiddlewareFunc
+	routes      []*Route         // List of registered routes
+	middlewares []MiddlewareFunc // List of middlewares to be applied to handlers
 }
 
+// MiddlewareFunc is a type definition for middleware functions.
+// Middleware functions wrap around handlers to provide additional functionality.
 type MiddlewareFunc func(next Handler) Handler
 
+// NewServerMux creates and returns a new instance of Router.
 func NewServerMux() *Router {
 	return &Router{}
 }
@@ -22,6 +26,8 @@ func (m *Router) GET(route string, f HandlerFunc) {
 	m.routes = append(m.routes, r)
 }
 
+// Use adds a middleware function to the list of middlewares.
+// Middlewares are applied in the order they are added.
 func (m *Router) Use(middleware MiddlewareFunc) {
 	m.middlewares = append(m.middlewares, middleware)
 }
@@ -66,6 +72,8 @@ func (m *Router) PATCH(route string, f HandlerFunc) {
 	m.routes = append(m.routes, r)
 }
 
+// applyMiddleware applies all registered middlewares to the given handler.
+// Middlewares are applied in the order they were added.
 func (m *Router) applyMiddleware(handler Handler) Handler {
 	for _, m := range m.middlewares {
 		handler = m(handler)
@@ -73,8 +81,9 @@ func (m *Router) applyMiddleware(handler Handler) Handler {
 	return handler
 }
 
-// ServeHTTP matches the request URL and method against the registered routes
-// and invokes the corresponding handler if a match is found.
+// ServeHTTP matches the request URL and method against the registered routes.
+// If a match is found, it applies middlewares and invokes the corresponding handler.
+// If no route matches, it returns a 404 Not Found status.
 func (m *Router) ServeHTTP(w ResponseWriter, r *Request) {
 	for _, route := range m.routes {
 		if route.match(r) {
