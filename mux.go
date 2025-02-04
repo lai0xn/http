@@ -1,37 +1,43 @@
 package http
 
 // Router is a simple multiplexer for routing HTTP requests to handlers.
+// It maintains a list of routes and middlewares to handle incoming requests.
 type Router struct {
-	routes []*Route
+	routes      []*Route         // List of registered routes
+	middlewares []MiddlewareFunc // List of middlewares to be applied to handlers
 }
 
+// MiddlewareFunc is a type definition for middleware functions.
+// Middleware functions wrap around handlers to provide additional functionality.
+type MiddlewareFunc func(next Handler) Handler
+
+// NewServerMux creates and returns a new instance of Router.
 func NewServerMux() *Router {
 	return &Router{}
-}
-
-// Route defines a route with an HTTP method, URL pattern, and associated handler.
-type Route struct {
-	Method  string
-	URL     string
-	Handler Handler
 }
 
 // GET registers a new GET route with the specified URL and handler function.
 func (m *Router) GET(route string, f HandlerFunc) {
 	r := &Route{
-		Method:  "GET",
-		URL:     route,
-		Handler: Handler(f),
+		method:  "GET",
+		url:     route,
+		handler: Handler(f),
 	}
 	m.routes = append(m.routes, r)
+}
+
+// Use adds a middleware function to the list of middlewares.
+// Middlewares are applied in the order they are added.
+func (m *Router) Use(middleware MiddlewareFunc) {
+	m.middlewares = append(m.middlewares, middleware)
 }
 
 // POST registers a new POST route with the specified URL and handler function.
 func (m *Router) POST(route string, f HandlerFunc) {
 	r := &Route{
-		Method:  "POST",
-		URL:     route,
-		Handler: Handler(f),
+		method:  "POST",
+		url:     route,
+		handler: Handler(f),
 	}
 	m.routes = append(m.routes, r)
 }
@@ -39,9 +45,9 @@ func (m *Router) POST(route string, f HandlerFunc) {
 // PUT registers a new PUT route with the specified URL and handler function.
 func (m *Router) PUT(route string, f HandlerFunc) {
 	r := &Route{
-		Method:  "PUT",
-		URL:     route,
-		Handler: Handler(f),
+		method:  "PUT",
+		url:     route,
+		handler: Handler(f),
 	}
 	m.routes = append(m.routes, r)
 }
@@ -49,9 +55,9 @@ func (m *Router) PUT(route string, f HandlerFunc) {
 // DELETE registers a new DELETE route with the specified URL and handler function.
 func (m *Router) DELETE(route string, f HandlerFunc) {
 	r := &Route{
-		Method:  "DELETE",
-		URL:     route,
-		Handler: Handler(f),
+		method:  "DELETE",
+		url:     route,
+		handler: Handler(f),
 	}
 	m.routes = append(m.routes, r)
 }
@@ -59,19 +65,30 @@ func (m *Router) DELETE(route string, f HandlerFunc) {
 // PATCH registers a new PATCH route with the specified URL and handler function.
 func (m *Router) PATCH(route string, f HandlerFunc) {
 	r := &Route{
-		Method:  "PATCH",
-		URL:     route,
-		Handler: Handler(f),
+		method:  "PATCH",
+		url:     route,
+		handler: Handler(f),
 	}
 	m.routes = append(m.routes, r)
 }
 
-// ServeHTTP matches the request URL and method against the registered routes
-// and invokes the corresponding handler if a match is found.
+// applyMiddleware applies all registered middlewares to the given handler.
+// Middlewares are applied in the order they were added.
+func (m *Router) applyMiddleware(handler Handler) Handler {
+	for _, m := range m.middlewares {
+		handler = m(handler)
+	}
+	return handler
+}
+
+// ServeHTTP matches the request URL and method against the registered routes.
+// If a match is found, it applies middlewares and invokes the corresponding handler.
+// If no route matches, it returns a 404 Not Found status.
 func (m *Router) ServeHTTP(w ResponseWriter, r *Request) {
 	for _, route := range m.routes {
-		if route.URL == r.URL && r.Method == route.Method {
-			route.Handler.ServeHTTP(w, r)
+		if route.match(r) {
+			handler := m.applyMiddleware(route.handler)
+			handler.ServeHTTP(w, r)
 			return
 		}
 	}

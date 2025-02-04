@@ -132,15 +132,11 @@ func (h *httpconn) serve() {
 			Headers: map[string]string{"Content-Type": "text/plain"},
 		}
 		h.handler.ServeHTTP(&resp, &req)
-		resp.Headers["Content-Length"] = strconv.Itoa(len(resp.Body))
-
-		// Construct the response
-		response := fmt.Sprintf("%s %d OK\r\n", resp.Proto, resp.Status)
-		for key, value := range resp.Headers {
-			response += fmt.Sprintf("%s: %s\r\n", key, value)
+		response, err := constructResponse(&resp)
+		if err != nil {
+			log.Fatal(err)
+			return
 		}
-		response += "\r\n" + resp.Body
-
 		// Send the response
 		fmt.Println(response)
 		h.conn.Write([]byte(response))
